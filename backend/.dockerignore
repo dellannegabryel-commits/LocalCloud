@@ -1,0 +1,7 @@
+node_modules
+npm-debug.log
+src/database/*.sqlite
+uploads/*
+.git
+.gitignore
+Dockerfile

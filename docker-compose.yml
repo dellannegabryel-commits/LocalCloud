@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_db:/app/src/database
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend_uploads:
+  backend_db:

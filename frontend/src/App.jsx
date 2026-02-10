@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  Upload, HardDrive, List, LayoutGrid, Search, Trash2,
-  Download, FileText, Image as ImageIcon, File, X, Plus, Home, Settings
+  Upload, HardDrive, List, Search, Trash2,
+  Download, FileText, Image as ImageIcon, File, X, Plus, Home, Settings,
+  BarChart3, PieChart, Activity, ChevronRight
 } from 'lucide-react';
 import api from './api/axios';
 import './index.css';
@@ -11,8 +12,10 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState('home'); // 'home', 'upload', 'files', 'settings'
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('date');
 
   useEffect(() => {
     fetchFiles();
@@ -39,7 +42,7 @@ function App() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       fetchFiles();
-      setActiveTab('files'); // Switch to files tab after upload
+      setActiveTab('files');
     } catch (error) {
       console.error('Error uploading file:', error);
     } finally {
@@ -66,30 +69,60 @@ function App() {
 
   const getFileIcon = (mimetype) => {
     if (mimetype.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-purple-400" />;
-    if (mimetype === 'application/pdf' || mimetype.includes('text')) return <FileText className="w-5 h-5 text-blue-400" />;
-    return <File className="w-5 h-5 text-gray-400" />;
+    if (mimetype.includes('pdf') || mimetype.includes('text')) return <FileText className="w-5 h-5 text-blue-400" />;
+    return <File className="w-5 h-5 text-indigo-400" />;
   };
 
-  const filteredFiles = files.filter(f =>
-    f.original_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const getCategory = (mimetype) => {
+    if (mimetype.startsWith('image/')) return 'image';
+    if (mimetype.includes('pdf') || mimetype.includes('text') || mimetype.includes('document')) return 'document';
+    return 'other';
+  };
+
+  const stats = useMemo(() => {
+    const totalSize = files.reduce((acc, f) => acc + f.size, 0);
+    return {
+      totalSize,
+      formattedTotal: formatSize(totalSize),
+      percentage: Math.min((totalSize / (10 * 1024 * 1024 * 1024)) * 100, 100).toFixed(1)
+    };
+  }, [files]);
+
+  const processedFiles = useMemo(() => {
+    let result = files.filter(f =>
+      f.original_name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (filterType !== 'all') {
+      result = result.filter(f => getCategory(f.mimetype) === filterType);
+    }
+
+    result.sort((a, b) => {
+      if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at);
+      if (sortBy === 'size') return b.size - a.size;
+      return 0;
+    });
+
+    return result;
+  }, [files, searchQuery, filterType, sortBy]);
 
   return (
     <div className="fixed inset-0 bg-slate-950 text-slate-200 flex flex-col md:flex-row overflow-hidden font-sans">
 
-      {/* Desktop Sidebar */}
+      {/* Sidebar (Desktop) */}
       <aside className="hidden md:flex w-72 border-r border-slate-900/50 p-8 flex-col gap-10 bg-slate-950/50 backdrop-blur-xl shrink-0">
         <div className="flex items-center gap-4">
           <div className="bg-indigo-600 p-2.5 rounded-2xl shadow-xl shadow-indigo-600/20">
             <HardDrive className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight bg-gradient-to-br from-white to-slate-400 bg-clip-text text-transparent">LocalDrive</h1>
+          <h1 className="text-2xl font-black tracking-tight underline decoration-indigo-500/30 decoration-4 underline-offset-8">LocalDrive</h1>
         </div>
 
         <nav className="flex flex-col gap-3">
           {[
-            { id: 'home', icon: Home, label: 'Home' },
-            { id: 'files', icon: List, label: 'Files' },
+            { id: 'home', icon: Home, label: 'Dashboard' },
+            { id: 'upload', icon: Plus, label: 'Add New File' },
+            { id: 'files', icon: List, label: 'My Explorer' },
             { id: 'settings', icon: Settings, label: 'Settings' }
           ].map(item => (
             <button
@@ -105,208 +138,175 @@ function App() {
         <div className="mt-auto glass p-6 rounded-3xl border-slate-800/50">
           <div className="text-xs text-slate-500 mb-3 uppercase font-bold tracking-widest">Storage Status</div>
           <div className="w-full bg-slate-800 h-2 rounded-full mb-3 overflow-hidden">
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-500 w-[15%] h-full rounded-full"></div>
+            <div style={{ width: `${stats.percentage}%` }} className="bg-gradient-to-r from-indigo-600 to-purple-500 h-full rounded-full transition-all duration-1000"></div>
           </div>
-          <p className="text-sm font-medium text-slate-300">1.2 GB <span className="text-slate-600 ml-1">of 10 GB</span></p>
+          <p className="text-sm font-medium text-slate-300">{stats.formattedTotal} <span className="text-slate-600 ml-1">of 10 GB</span></p>
         </div>
       </aside>
 
       {/* Mobile Header */}
       <header className="md:hidden flex items-center justify-between p-5 bg-slate-950/80 backdrop-blur-lg border-b border-slate-900 fixed top-0 w-full z-40">
         <div className="flex items-center gap-3">
-          <div className="bg-indigo-600 p-1.5 rounded-lg">
-            <HardDrive className="w-5 h-5 text-white" />
-          </div>
-          <span className="font-bold text-lg">LocalDrive</span>
+          <div className="bg-indigo-600 p-1.5 rounded-lg"><HardDrive className="w-5 h-5 text-white" /></div>
+          <span className="font-bold text-lg tracking-tight">LocalDrive</span>
         </div>
-        <button
-          onClick={() => {
-            setIsSearchOpen(!isSearchOpen);
-            if (isSearchOpen) setSearchQuery('');
-          }}
-          className="p-2 hover:bg-slate-900 rounded-full transition-colors active:scale-95"
-        >
+        <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-2 text-slate-400">
           {isSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
         </button>
       </header>
 
-      {/* Main Container */}
-      <div className="flex-1 flex flex-col h-full md:relative">
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto pt-20 pb-24 md:py-12 md:px-12 px-5 scroll-smooth">
-          <div className="max-w-4xl mx-auto space-y-10">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full bg-slate-950">
+        <main className="flex-1 overflow-y-auto pt-20 pb-28 md:py-12 md:px-12 px-5 no-scrollbar scroll-smooth">
+          <div className="max-w-5xl mx-auto space-y-12">
 
-            {/* Mobile Search Bar Expansion */}
+            {/* Search Expansion */}
             {isSearchOpen && (
               <div className="md:hidden animate-in slide-in-from-top duration-300">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search your files..."
-                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-12 pr-4 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    autoFocus
-                  />
+                <input
+                  type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search files..."
+                  className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  autoFocus
+                />
+              </div>
+            )}
+
+            {/* DASHBOARD VIEW */}
+            {activeTab === 'home' && (
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                <div>
+                  <h2 className="text-4xl md:text-5xl font-black mb-2 tracking-tighter">Welcome back</h2>
+                  <p className="text-slate-500 text-lg font-medium">Your local cloud is healthy and running.</p>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                  <div className="glass p-8 rounded-[2.5rem] space-y-4">
+                    <BarChart3 className="w-10 h-10 text-indigo-500" />
+                    <div>
+                      <p className="text-slate-500 text-xs font-black uppercase tracking-widest">Total Usage</p>
+                      <p className="text-3xl font-black text-slate-100">{stats.formattedTotal}</p>
+                    </div>
+                  </div>
+                  <div className="glass p-8 rounded-[2.5rem] space-y-4">
+                    <Activity className="w-10 h-10 text-purple-500" />
+                    <div>
+                      <p className="text-slate-500 text-xs font-black uppercase tracking-widest">Total Files</p>
+                      <p className="text-3xl font-black text-slate-100">{files.length}</p>
+                    </div>
+                  </div>
+                  <div className="hidden lg:block glass p-8 rounded-[2.5rem] space-y-4">
+                    <PieChart className="w-10 h-10 text-blue-500" />
+                    <div>
+                      <p className="text-slate-500 text-xs font-black uppercase tracking-widest">Availability</p>
+                      <p className="text-3xl font-black text-slate-100">100%</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-2xl font-black tracking-tight">Recent Activity</h3>
+                    <button onClick={() => setActiveTab('files')} className="text-indigo-400 font-bold flex items-center gap-1">Explorer <ChevronRight className="w-4 h-4" /></button>
+                  </div>
+                  <div className="grid gap-4">
+                    {files.slice(0, 4).map(file => (
+                      <div key={file.id} className="glass p-6 rounded-[2rem] flex items-center justify-between group hover:bg-slate-900 transition-all">
+                        <div className="flex items-center gap-6 min-w-0">
+                          <div className="bg-slate-900 p-4 rounded-2xl">{getFileIcon(file.mimetype)}</div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-200 truncate pr-4 text-lg">{file.original_name}</p>
+                            <p className="text-xs text-slate-500 font-black tracking-widest uppercase">{formatSize(file.size)} • {new Date(file.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <a href={`/download/${file.id}`} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-indigo-400"><Download className="w-5 h-5" /></a>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* View Selection Logic */}
-            {activeTab === 'home' && (
-              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-500">
-                <div className="hidden md:block">
-                  <h2 className="text-4xl font-extrabold mb-2 tracking-tight">Your Space</h2>
-                  <p className="text-slate-500 text-lg">Centralize and manage your digital life with ease.</p>
+            {/* UPLOAD VIEW */}
+            {activeTab === 'upload' && (
+              <div className="space-y-10 animate-in zoom-in-95 duration-500 max-w-2xl mx-auto pt-10">
+                <div className="text-center space-y-3">
+                  <h2 className="text-4xl font-black tracking-tighter">Add Files</h2>
+                  <p className="text-slate-500 text-lg">Securely upload to your personal storage.</p>
                 </div>
 
-                {/* Upload Zone */}
                 <div
-                  className={`relative group border-2 border-dashed rounded-[2.5rem] p-10 md:p-20 transition-all duration-500 flex flex-col items-center justify-center gap-6 ${dragActive ? 'border-indigo-500 bg-indigo-500/5 rotate-1 scale-[1.02]' : 'border-slate-800/60 hover:border-slate-700 bg-slate-900/30'}`}
+                  className={`relative group border-4 border-dashed rounded-[3.5rem] p-16 md:p-32 transition-all duration-500 flex flex-col items-center justify-center gap-10 ${dragActive ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-800/60 bg-slate-900/20'}`}
                   onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
                   onDragLeave={() => setDragActive(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragActive(false);
-                    const file = e.dataTransfer.files[0];
-                    if (file) handleUpload(file);
-                  }}
+                  onDrop={(e) => { e.preventDefault(); setDragActive(false); const file = e.dataTransfer.files[0]; if (file) handleUpload(file); }}
                 >
-                  <div className="bg-indigo-600/15 p-8 rounded-3xl group-hover:scale-110 transition-transform duration-500 group-hover:bg-indigo-600/20">
-                    <Upload className="w-12 h-12 md:w-16 md:h-16 text-indigo-500" />
+                  <div className="bg-indigo-600/10 p-12 rounded-[3rem] group-hover:scale-110 transition-transform duration-700">
+                    <Plus className="w-20 h-20 text-indigo-500" />
                   </div>
-                  <div className="text-center space-y-3">
-                    <p className="text-2xl font-bold md:text-3xl">Upload Files</p>
-                    <p className="text-slate-500 text-sm md:text-base max-w-[240px] md:max-w-sm mx-auto leading-relaxed">
-                      Drag and drop your files here or tap the button to select from your device.
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                    onChange={(e) => handleUpload(e.target.files[0])}
-                  />
+                  <p className="text-2xl font-black text-center max-w-xs leading-tight">Drag and drop here or <span className="text-indigo-400 underline decoration-2 underline-offset-4">browse files</span></p>
+                  <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleUpload(e.target.files[0])} />
 
                   {isUploading && (
-                    <div className="absolute inset-0 bg-slate-950/90 rounded-[2.5rem] flex items-center justify-center backdrop-blur-md z-10 animate-in fade-in duration-300">
-                      <div className="flex flex-col items-center gap-5">
-                        <div className="w-16 h-16 border-4 border-indigo-500/10 border-t-indigo-500 rounded-full animate-spin shadow-2xl shadow-indigo-500/20"></div>
-                        <p className="text-indigo-400 font-bold tracking-widest text-lg animate-pulse uppercase">Uploading</p>
-                      </div>
+                    <div className="absolute inset-0 bg-slate-950/95 rounded-[3.5rem] flex flex-col items-center justify-center backdrop-blur-3xl z-10 animate-in fade-in duration-300">
+                      <div className="w-20 h-20 border-4 border-indigo-500/10 border-t-indigo-400 rounded-full animate-spin mb-6"></div>
+                      <p className="text-indigo-400 font-black tracking-[0.4em] text-xl uppercase animate-pulse">Uploading</p>
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {(activeTab === 'files' || activeTab === 'home') && (
-              <section className="space-y-6 pb-12 animate-in fade-in duration-500">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-2xl font-bold flex items-center gap-4">
-                    {activeTab === 'home' ? 'Recent Files' : 'All Files'}
-                    <span className="bg-slate-900 text-slate-500 px-3 py-1 rounded-xl text-xs font-mono border border-slate-800/50">
-                      {searchQuery ? filteredFiles.length : files.length} TOTAL
-                    </span>
-                  </h3>
-                  <div className="hidden md:block relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Quick search"
-                      className="bg-slate-900 border border-slate-800 rounded-xl pl-11 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-48 focus:w-64 transition-all duration-300"
-                    />
+            {/* EXPLORER VIEW */}
+            {activeTab === 'files' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                  <div>
+                    <h2 className="text-4xl font-black tracking-tighter">My Explorer</h2>
+                    <p className="text-slate-500 font-medium tracking-tight">Managing your stored files</p>
+                  </div>
+                  <div className="bg-slate-900/50 p-1.5 rounded-2xl border border-slate-800/50 flex gap-1">
+                    {['all', 'image', 'document'].map(type => (
+                      <button
+                        key={type} onClick={() => setFilterType(type)}
+                        className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${filterType === type ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500'}`}
+                      >
+                        {type}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 <div className="grid gap-4">
-                  {(searchQuery ? filteredFiles : files.slice(0, activeTab === 'home' ? 5 : undefined)).map((file) => (
-                    <div key={file.id} className="glass p-5 rounded-[2.5rem] flex items-center justify-between group hover:bg-slate-900/60 transition-all border border-transparent hover:border-slate-800/50">
-                      <div className="flex items-center gap-5 flex-1 min-w-0">
-                        <div className="bg-slate-900 p-4 rounded-[1.25rem] shrink-0 shadow-inner">
-                          {getFileIcon(file.mimetype)}
-                        </div>
+                  {processedFiles.map(file => (
+                    <div key={file.id} className="glass p-5 rounded-[2.5rem] flex items-center justify-between group hover:bg-slate-900 transition-all border border-transparent hover:border-slate-800/50">
+                      <div className="flex items-center gap-6 min-w-0">
+                        <div className="bg-slate-900 p-4 rounded-2xl shadow-inner">{getFileIcon(file.mimetype)}</div>
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-200 truncate pr-4 text-lg">{file.original_name}</p>
-                          <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">
-                            {formatSize(file.size)} • {new Date(file.created_at).toLocaleDateString()}
-                          </p>
+                          <p className="font-bold text-slate-100 text-lg truncate pr-4">{file.original_name}</p>
+                          <p className="text-xs text-slate-500 font-black tracking-widest uppercase">{formatSize(file.size)} • {new Date(file.created_at).toLocaleDateString()}</p>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-3">
-                        <a
-                          href={`http://localhost:3001/download/${file.id}`}
-                          className="p-3.5 bg-slate-900/50 hover:bg-indigo-600/20 rounded-2xl text-slate-400 hover:text-indigo-400 transition-all active:scale-90"
-                        >
-                          <Download className="w-5 h-5" />
-                        </a>
-                        <button
-                          onClick={() => handleDelete(file.id)}
-                          className="p-3.5 bg-slate-900/50 hover:bg-red-500/10 rounded-2xl text-slate-400 hover:text-red-500 transition-all active:scale-90"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                      <div className="flex gap-2">
+                        <a href={`/download/${file.id}`} className="p-3.5 bg-slate-900 rounded-2xl text-slate-400 hover:text-indigo-400 transition-all"><Download className="w-5 h-5" /></a>
+                        <button onClick={() => handleDelete(file.id)} className="p-3.5 bg-slate-900 rounded-2xl text-slate-400 hover:text-red-500 transition-all"><Trash2 className="w-5 h-5" /></button>
                       </div>
                     </div>
                   ))}
-
-                  {files.length === 0 && (
-                    <div className="text-center py-24 bg-slate-900/10 rounded-[3rem] border-2 border-slate-900/50 border-dashed flex flex-col items-center gap-5">
-                      <div className="p-6 bg-slate-900 rounded-full shadow-inner">
-                        <File className="w-12 h-12 text-slate-800" />
-                      </div>
-                      <p className="text-slate-600 font-medium text-lg">Your storage is empty.</p>
-                      <button onClick={() => setActiveTab('home')} className="text-indigo-500 font-bold hover:underline">Upload your first file</button>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {activeTab === 'settings' && (
-              <div className="animate-in fade-in slide-in-from-right-5 duration-500 py-10">
-                <h3 className="text-3xl font-bold mb-8">Settings</h3>
-                <div className="glass p-8 rounded-[2.5rem] space-y-6">
-                  <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-2xl">
-                    <span className="font-medium">Dark Mode (Default)</span>
-                    <div className="w-12 h-6 bg-indigo-600 rounded-full relative">
-                      <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
-                    </div>
-                  </div>
-                  <p className="text-slate-500 text-sm">More settings coming soon to your local cloud.</p>
+                  {processedFiles.length === 0 && <div className="text-center py-32 bg-slate-900/20 rounded-[4rem] border-2 border-slate-900 border-dashed"><p className="text-slate-600 font-bold text-xl uppercase tracking-widest">No files matching</p></div>}
                 </div>
               </div>
             )}
           </div>
         </main>
 
-        {/* Mobile Bottom Navigation */}
-        <nav className="md:hidden fixed bottom-0 w-full bottom-nav-blur border-t border-slate-900/50 flex justify-around items-center p-4 z-50 pb-8">
-          <button
-            onClick={() => setActiveTab('home')}
-            className={`p-3 rounded-2xl flex flex-col items-center gap-1 transition-all active:scale-90 ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-600'}`}
-          >
-            <Home className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Home</span>
-          </button>
+        {/* Mobile Navbar */}
+        <nav className="md:hidden fixed bottom-0 w-full bottom-nav-blur border-t border-slate-900/50 flex justify-around items-center p-6 z-50 rounded-t-[2.5rem]">
+          <button onClick={() => setActiveTab('home')} className={`p-4 rounded-2xl transition-all ${activeTab === 'home' ? 'bg-indigo-600/10 text-indigo-400' : 'text-slate-600'}`}><Home className="w-7 h-7" /></button>
 
-          <button
-            onClick={() => setActiveTab('home')}
-            className="group relative -top-6 p-5 bg-indigo-600 rounded-[1.75rem] shadow-2xl shadow-indigo-600/40 text-white transition-all active:scale-95"
-          >
-            <Plus className="w-8 h-8" />
-          </button>
+          <button onClick={() => setActiveTab('upload')} className="relative -top-10 p-6 bg-indigo-600 rounded-[2rem] shadow-2xl shadow-indigo-600/40 text-white active:scale-95 transition-transform"><Plus className="w-9 h-9" /></button>
 
-          <button
-            onClick={() => setActiveTab('files')}
-            className={`p-3 rounded-2xl flex flex-col items-center gap-1 transition-all active:scale-90 ${activeTab === 'files' ? 'text-indigo-400' : 'text-slate-600'}`}
-          >
-            <List className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Files</span>
-          </button>
+          <button onClick={() => setActiveTab('files')} className={`p-4 rounded-2xl transition-all ${activeTab === 'files' ? 'bg-indigo-600/10 text-indigo-400' : 'text-slate-600'}`}><List className="w-7 h-7" /></button>
         </nav>
       </div>
 
