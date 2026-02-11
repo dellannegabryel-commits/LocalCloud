@@ -1,98 +1,88 @@
-Este é um excelente ponto de partida. Um bom `README.md` serve como o mapa do seu projeto, tanto para você não se perder quanto para quem for colaborar (ou para o seu "eu do futuro").
-
-Aqui está uma estrutura profissional e organizada para o seu projeto:
-
----
-
 # 📁 LocalDrive: Seu Servidor de Arquivos Pessoal
 
-Um sistema leve de armazenamento de arquivos para rede doméstica, construído com a **Stack JavaScript** (Node.js + React) e persistência em **SQLite**.
+Um sistema de armazenamento de arquivos privado e robusto para rede doméstica, otimizado para mobile e entregue via **Docker**. Construído com a **Stack JavaScript** (Node.js + React) e persistência em **SQLite**, o LocalDrive oferece uma experiência de "nuvem pessoal" sem limites artificiais.
 
 ---
 
 ## 🚀 Tecnologias Utilizadas
 
-* **Frontend:** React.js, Tailwind CSS (para uma UI moderna), Axios.
+### Core
+
+* **Frontend:** React (Vite), Tailwind CSS v4, Lucide Icons.
 * **Backend:** Node.js, Express.
-* **Uploads:** Multer (Middleware para multipart/form-data).
-* **Banco de Dados:** SQLite3 (Armazenamento de metadados).
+* **Banco de Dados:** SQLite (Metadados dos arquivos).
+
+### Infraestrutura & DevOps
+
+* **Containerização:** Docker & Docker Compose.
+* **Servidor Web / Proxy:** Nginx (Proxy Reverso para comunicação unificada).
+* **Uploads:** Multer (Configurado para uploads massivos/ilimitados).
 
 ---
 
-## 🛠️ Funcionalidades Planejadas
+## ✨ Funcionalidades Implementadas
 
-* [ ] **Upload de Arquivos:** Arrastar e soltar arquivos para o servidor.
-* [ ] **Listagem Dinâmica:** Visualizar todos os arquivos armazenados com tamanho e data.
-* [ ] **Download:** Baixar arquivos de qualquer dispositivo na rede local.
-* [ ] **Exclusão:** Remover arquivos indesejados.
-* [ ] **Preview:** Visualização rápida de imagens e PDFs diretamente no navegador.
+* ✅ **Upload sem Limites**: Suporte para arquivos gigantes (vídeos 4K, arquivos compactados) limitado apenas pelo seu disco.
+* ✅ **Dashboard de Estatísticas**: Visualize o uso total de armazenamento e contagem de arquivos em tempo real.
+* ✅ **Visualizador Integrado**: Preview de imagens, vídeos (MP4, etc) e PDFs diretamente no navegador.
+* ✅ **Explorer Administrativo**: Navegação completa com confirmação de exclusão e download rápido.
+* ✅ **Mobile Responsive**: Design otimizado para celulares com barra de navegação inferior e visual "Glassmorphism" premium.
+* ✅ **Sistema de Temas**: Escolha entre **Oled Dark**, **Indigo Night** ou **Classic Slate** (persiste no navegador).
 
 ---
 
-## 📂 Estrutura de Pastas
+## 📂 Estrutura do Projeto
 
 ```text
 .
 ├── backend/
-│   ├── uploads/          # Arquivos físicos armazenados
-│   ├── src/
-│   │   ├── database/     # Configuração do SQLite
-│   │   └── server.js     # Endpoints da API
-│   └── package.json
+│   ├── src/             
+│   │   ├── database/    # SQLite init
+│   │   └── server.js    # API Endpoints & Logic
+│   └── Dockerfile       # Node-Alpine image
 ├── frontend/
-│   ├── src/
-│   │   ├── components/   # Componentes React (Upload, List, etc)
-│   │   └── App.js
-│   └── package.json
+│   ├── src/             # UI Components & Themes
+│   ├── nginx.conf       # Proxy reverso & Static serving
+│   └── Dockerfile       # Multi-stage build (Node + Nginx)
+├── docker-compose.yml   # Orquestração completa
 └── README.md
-
 ```
 
 ---
 
-## ⚙️ Pré-requisitos
+## ⚡ Como Rodar o Projeto
 
-Antes de começar, você precisará ter instalado em sua máquina:
+A maneira mais fácil e recomendada é usando **Docker Compose**.
 
-* [Node.js](https://nodejs.org/) (v18 ou superior)
-* [NPM](https://www.npmjs.com/) ou [Yarn](https://yarnpkg.com/)
-
----
-
-## ⚡ Como rodar o projeto
-
-### 1. Configurando o Backend
+1. Certifique-se de ter o [Docker](https://www.docker.com/) instalado.
+2. No diretório raiz do projeto, execute:
 
 ```bash
-cd backend
-npm install
-# Para iniciar o servidor
-npm run dev
-
+docker compose up --build
 ```
 
-### 2. Configurando o Frontend
-
-```bash
-cd frontend
-npm install
-# Para iniciar a interface
-npm start
-
-```
-
-### 3. Acesso na Rede Local
-
-Para acessar de outros dispositivos (celular, outro notebook), descubra seu IP local (`ipconfig` no Windows ou `ifconfig` no Linux) e acesse no navegador:
-`http://SEU_IP_LOCAL:3000`
+O sistema estará disponível em:
+* **Desktop/Local:** `http://localhost`
+* **Mobile/Rede Local:** `http://[IP-DO-SEU-PC]` (Porta 80 padrão)
 
 ---
 
-## 📝 Notas de Implementação
+## 📱 Acesso Mobile
 
-* O banco de dados SQLite será gerado automaticamente na primeira execução do backend.
-* Certifique-se de que a pasta `backend/uploads` tenha permissões de escrita.
+O LocalDrive foi desenhado para ser acessado de qualquer dispositivo na sua casa.
+
+1. Descubra seu IP local (ex: `192.168.0.105`).
+2. Abra o navegador no seu celular e digite o IP.
+3. Use a aba "Upload" centralizada para enviar fotos e vídeos do seu celular diretamente para o seu PC.
 
 ---
 
-> **Dica de Próximo Passo:** > Deseja que eu gere agora o código do **Backend (`server.js`)** integrando o **Multer** com o **SQLite** para que você já possa testar o primeiro upload?
+## 📝 Configurações de Administrador
+
+* **Uploads**: O sistema está configurado com `client_max_body_size 0` no Nginx, permitindo uploads de qualquer tamanho.
+* **Persistência**: Os arquivos enviados são salvos no volume `backend_uploads` definido no Docker Compose, garantindo que seus dados não sumam ao reiniciar os containers.
+* **Segurança Local**: Por ser um projeto de rede doméstica, o foco é em performance e facilidade de acesso.
+
+---
+
+*Desenvolvido com foco em privacidade e autonomia digital.*
