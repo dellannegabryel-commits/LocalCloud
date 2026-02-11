@@ -24,7 +24,10 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: Infinity }
+});
 
 // Endpoints
 
@@ -102,6 +105,22 @@ app.delete('/files/:id', (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
+// Endpoint to View file (inline)
+app.get('/view/:id', (req, res) => {
+    const { id } = req.params;
+    db.get('SELECT * FROM files WHERE id = ?', [id], (err, file) => {
+        if (err || !file) return res.status(404).json({ error: 'File not found' });
+
+        const filePath = path.resolve(file.path);
+        res.setHeader('Content-Type', file.mimetype);
+        res.setHeader('Content-Disposition', 'inline');
+        res.sendFile(filePath);
+    });
+});
+
+const server = app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
+
+server.timeout = 0;
+server.keepAliveTimeout = 60000;
